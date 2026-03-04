@@ -93,7 +93,8 @@ const id = escapeXml(p.barkod || p.stokkod || p.stokid || "");
 if (!id) return ""; // ID yoksa ürünü atlasın
 
 const gtin = escapeXml(p.barkod || "");
-const priceRaw = Number(p.indirimlifiyat || p.psf || 0);
+const priceRaw = Number(
+  String(p.indirimlifiyat || p.psf || 0).replace(",", ".")
 const price = priceRaw.toFixed(2);
 const stock = Number(p.miktar || 0);
 const availability = stock > 0 ? "in_stock" : "out_of_stock";
