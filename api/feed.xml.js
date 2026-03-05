@@ -2,7 +2,7 @@ export default async function handler(req, res) {
   const API_BASE = "https://my.ultegra.net/service/stokService/NTg1NTRM?aciklama=0&size=100&page=";
   const SITEMAP_URL = "https://www.thekitapyayinlari.com/sitemap/product.xml";
 
-  // 1. önce ilk sayfayı çekip toplam sayfa sayısını öğrenebiliriz.. ilk sayfa seri sonrası paralel gelecek
+  // 1. önce ilk sayfayı çekip toplam sayfa sayısını öğrenebiliriz.. ilk sayfa seri, sonrası paralel gelecek
   let firstData;
   try {
     const firstRes = await fetch(API_BASE + "0");
@@ -18,7 +18,7 @@ export default async function handler(req, res) {
   // 2. kalan sayfaları paralel çekebiliriz
   const remainingPages = Array.from({ length: totalPage - 1 }, (_, i) => i + 1);
 
-  const pageResults = await Promise.allSettled( // sonraki sayfalar paralel çeklsin
+  const pageResults = await Promise.allSettled(
     remainingPages.map(async (page) => {
       const res = await fetch(API_BASE + page);
       if (!res.ok) throw new Error(`Sayfa ${page}: HTTP ${res.status}`);
@@ -32,21 +32,6 @@ export default async function handler(req, res) {
       r.status === "fulfilled" ? r.value?.data || [] : []
     ),
   ];
-
-
-
-// ilk 5 ürün için eşleşmeyi debug edelim
-allProducts.slice(0, 5).forEach(p => {
-  const slug = toSlug(p.stokad || "");
-  const match = sitemapLinks.find(link => new RegExp(`/${slug}(/|$)`).test(link));
-  console.log("---");
-  console.log("Ürün adı:", p.stokad);
-  console.log("Slug:", slug);
-  console.log("Eşleşen link:", match || "YOK");
-  console.log("Sitemap örnek:", sitemapLinks[0]);
-});
-
-
 
   // başarısız sayfaları loglasın ama devam etsin
   pageResults.forEach((r, i) => {
@@ -67,8 +52,6 @@ allProducts.slice(0, 5).forEach(p => {
     // sitemap olmasa da feed üretmeye devam etsin, linkler boş kalıcak
     console.warn("Sitemap alınamadı:", err);
   }
-
-  // 4. eklemeler
 
   // xml injection için eklenebilir
   function escapeXml(str) {
@@ -98,7 +81,7 @@ allProducts.slice(0, 5).forEach(p => {
       .replace(/\s+/g, "-");
   }
 
-  // 5. feed itemlarını oluştur
+  // 5.
   const items = allProducts
     .map((p) => {
       const title = p.stokad || "";
@@ -123,9 +106,10 @@ allProducts.slice(0, 5).forEach(p => {
       if (title) {
         const slug = toSlug(title);
         productLink =
-          sitemapLinks.find((link) =>
-            new RegExp(`/${slug}(/|$)`).test(link) //slug yerine regex kullanılabilir
-          ) || "";
+          sitemapLinks.find((link) => {
+            const linkSlug = link.split("/").pop().replace(/-\d+$/, ""); // sitemap url lerindeki sonda bulunan -9706 gibi numaralardan dolayı ürün sayfası eksik hatası çözümü burada.. son kısımdan önceki numaraları temizleyip karşılaştırıyoruz.  
+            return linkSlug === slug || linkSlug.includes(slug);
+          }) || "";
       }
 
       return `
@@ -140,7 +124,7 @@ allProducts.slice(0, 5).forEach(p => {
     <g:brand>${brand}</g:brand>
     <g:gtin>${gtin}</g:gtin>
     <g:condition>new</g:condition>
-    <g:google_product_category>784</g:google_product_category> <!-- araya fazla boşluk küçük harf veya farklı karakter girerse eski kod reddedilebilir.. google kitap kategorisi 784 sanırım.. medya - kitaplar olması lazım.. bunu bir dener misiniz. -->
+    <g:google_product_category>784</g:google_product_category>
     <g:product_type>${productType}</g:product_type>
   </item>`;
     })
@@ -157,6 +141,6 @@ allProducts.slice(0, 5).forEach(p => {
 </rss>`;
 
   res.setHeader("Content-Type", "application/xml; charset=utf-8");
-
+  
   res.status(200).send(xml);
 }
